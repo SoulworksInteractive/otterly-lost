@@ -5,39 +5,73 @@ document.addEventListener('DOMContentLoaded', () => {
   const prevBtn = lightbox.querySelector('.prev');
   const nextBtn = lightbox.querySelector('.next');
   const downloadBtn = lightbox.querySelector('.lightbox-download');
+  const lightboxContent = lightbox.querySelector('.lightbox-content');
   const galleryItems = document.querySelectorAll('.gallery-item, .gallery-item-company');
   let currentIndex = 0;
   const FADE_MS = 180;
 
   // Open lightbox
   function setImage(index) {
-    const imgSrc = galleryItems[index].href;
-    const imgAlt = galleryItems[index].querySelector('img').alt;
+    const anchorEl = galleryItems[index];
+    const pngHref = anchorEl.href; // keep PNG for download
+    const imgAlt = (anchorEl.querySelector('img') && anchorEl.querySelector('img').alt) || '';
 
-    const applySrc = () => {
-      lightboxImg.src = imgSrc;
-      lightboxImg.alt = imgAlt;
-      if (downloadBtn) {
-        downloadBtn.href = imgSrc;
-        downloadBtn.setAttribute('download', '');
-      }
-    };
+    // Prepare the node to display in lightbox (clone <picture> if present, otherwise clone <img>)
+    const pictureEl = anchorEl.querySelector('picture');
+    let nodeToInsert;
+    let imgInside;
 
-    // Ensure previous load handlers do not stack
-    lightboxImg.onload = () => {
+    if (pictureEl) {
+      nodeToInsert = pictureEl.cloneNode(true);
+      imgInside = nodeToInsert.querySelector('img');
+      // Ensure the lightbox uses large responsive selection
+      nodeToInsert.style.display = 'block';
+      nodeToInsert.style.width = '100%';
+      nodeToInsert.querySelectorAll('source').forEach(src => {
+        if (src.hasAttribute('srcset')) {
+          src.setAttribute('sizes', '90vw');
+        }
+      });
+    } else {
+      imgInside = anchorEl.querySelector('img').cloneNode(true);
+      nodeToInsert = imgInside;
+    }
+
+    if (imgInside) {
+      imgInside.classList.add('lightbox-image');
+      imgInside.alt = imgAlt;
+      imgInside.style.width = '100%';
+      imgInside.style.height = 'auto';
+      imgInside.style.opacity = '0';
+      imgInside.onload = () => {
+        requestAnimationFrame(() => {
+          imgInside.style.opacity = '1';
+        });
+      };
+    }
+
+    // Update download to PNG
+    if (downloadBtn) {
+      downloadBtn.href = pngHref;
+      downloadBtn.setAttribute('download', '');
+    }
+
+    // Swap content with a short fade if already visible
+    const previousImg = lightboxContent.querySelector('.lightbox-image');
+    const doSwap = () => {
+      lightboxContent.innerHTML = '';
+      lightboxContent.appendChild(nodeToInsert);
+      // Fallback to ensure visibility even if onload doesn't fire (cached)
       requestAnimationFrame(() => {
-        lightboxImg.style.opacity = '1';
+        if (imgInside) imgInside.style.opacity = '1';
       });
     };
 
-    // If already visible, do a short fade-out before swapping
-    if (lightbox.classList.contains('active')) {
-      lightboxImg.style.opacity = '0';
-      setTimeout(applySrc, Math.min(FADE_MS, 120));
+    if (lightbox.classList.contains('active') && previousImg) {
+      previousImg.style.opacity = '0';
+      setTimeout(doSwap, Math.min(FADE_MS, 120));
     } else {
-      // First open: start from 0 and fade in when loaded
-      lightboxImg.style.opacity = '0';
-      applySrc();
+      doSwap();
     }
   }
 
@@ -51,8 +85,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // Close lightbox
   function closeLightbox() {
     lightbox.classList.remove('active');
-    lightboxImg.src = '';
-    lightboxImg.alt = '';
+    // Clear any inserted content
+    if (lightboxContent) {
+      lightboxContent.innerHTML = '';
+    }
+    if (lightboxImg) {
+      lightboxImg.src = '';
+      lightboxImg.alt = '';
+    }
     document.body.style.overflow = '';
   }
 
@@ -120,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dl.setAttribute('role', 'button');
     dl.setAttribute('tabindex', '0');
     dl.setAttribute('aria-label', 'Download image');
-    dl.innerHTML = '<i class="fa-solid fa-download"></i>';
+    dl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v10m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
     dl.addEventListener('click', (ev) => {
       // Prevent both lightbox open and default navigation
@@ -151,31 +191,133 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------
   // Carousel (on-page slider)
   // ----------------------------
-  const carouselImg = document.querySelector('.carousel-image');
+  const carouselFrame = document.querySelector('.carousel-frame');
   const carouselPrev = document.querySelector('.carousel-nav.prev');
   const carouselNext = document.querySelector('.carousel-nav.next');
 
-  if (carouselImg && carouselPrev && carouselNext && galleryItems.length) {
+  if (carouselFrame && carouselPrev && carouselNext && galleryItems.length) {
     let slideIndex = 0;
+    const CAROUSEL_FADE_MS = 180;
+    let isTransitioning = false;
+    let pendingIndex = null;
+    let transitionToken = 0;
 
-    function showSlide(idx) {
+    function startTransitionTo(idx) {
+      isTransitioning = true;
+      transitionToken += 1;
+      const localToken = transitionToken;
       slideIndex = (idx + galleryItems.length) % galleryItems.length;
-      const imgSrc = galleryItems[slideIndex].href;
-      const imgAlt = galleryItems[slideIndex].querySelector('img').alt;
-      carouselImg.src = imgSrc;
-      carouselImg.alt = imgAlt;
+      const anchorEl = galleryItems[slideIndex];
+      const pictureEl = anchorEl.querySelector('picture');
+      let nodeToInsert;
+      if (pictureEl) {
+        nodeToInsert = pictureEl.cloneNode(true);
+        // Prefer large variant in carousel
+        nodeToInsert.querySelectorAll('source').forEach(src => src.setAttribute('sizes', '100vw'));
+      } else {
+        nodeToInsert = anchorEl.querySelector('img').cloneNode(true);
+      }
+      // Ensure accessibility
+      const imgEl = nodeToInsert.querySelector ? (nodeToInsert.querySelector('img') || nodeToInsert) : nodeToInsert;
+      if (imgEl && anchorEl.querySelector('img')) {
+        imgEl.alt = anchorEl.querySelector('img').alt || '';
+      }
+      const previousChild = carouselFrame.firstElementChild;
+
+      // Prepare new node styles for fade; position in normal flow
+      nodeToInsert.style.opacity = '0';
+      nodeToInsert.style.transition = `opacity ${CAROUSEL_FADE_MS}ms ease`;
+
+      // No spacer needed due to fixed aspect ratio on the frame
+
+      carouselFrame.appendChild(nodeToInsert);
+
+      let transitioned = false;
+      const startTransition = () => {
+        if (transitioned) return;
+        transitioned = true;
+        // If a newer transition started, abort this one and clean up
+        if (localToken !== transitionToken) {
+          if (nodeToInsert.parentNode === carouselFrame) {
+            carouselFrame.removeChild(nodeToInsert);
+          }
+          return;
+        }
+        requestAnimationFrame(() => {
+          nodeToInsert.style.opacity = '1';
+          if (previousChild) {
+            // Absolutely position the outgoing child so it sits on top and can fade away
+            previousChild.style.position = 'absolute';
+            previousChild.style.inset = '0';
+            previousChild.style.width = '100%';
+            previousChild.style.height = '100%';
+            previousChild.style.transition = `opacity ${CAROUSEL_FADE_MS}ms ease`;
+            previousChild.style.opacity = '0';
+            setTimeout(() => {
+              if (previousChild.parentNode === carouselFrame) {
+                carouselFrame.removeChild(previousChild);
+              }
+              // End of transition
+              if (localToken === transitionToken) {
+                isTransitioning = false;
+                if (pendingIndex !== null) {
+                  const toGo = pendingIndex;
+                  pendingIndex = null;
+                  startTransitionTo(toGo);
+                }
+              }
+            }, CAROUSEL_FADE_MS);
+          } else {
+            // End of transition
+            if (localToken === transitionToken) {
+              isTransitioning = false;
+              if (pendingIndex !== null) {
+                const toGo = pendingIndex;
+                pendingIndex = null;
+                startTransitionTo(toGo);
+              }
+            }
+          }
+        });
+      };
+
+      // Prefer decode() for reliable readiness
+      const targetImg = nodeToInsert.querySelector ? (nodeToInsert.querySelector('img') || null) : null;
+      if (targetImg && typeof targetImg.decode === 'function') {
+        targetImg.decode().then(startTransition).catch(startTransition);
+        // Minimal safety timeout
+        setTimeout(startTransition, 600);
+      } else if (targetImg) {
+        if (targetImg.complete && targetImg.naturalWidth > 0) {
+          startTransition();
+        } else {
+          targetImg.onload = () => startTransition();
+          setTimeout(startTransition, 600);
+        }
+      } else {
+        startTransition();
+      }
     }
 
-    carouselPrev.addEventListener('click', () => showSlide(slideIndex - 1));
-    carouselNext.addEventListener('click', () => showSlide(slideIndex + 1));
+    function requestSlide(targetIdx) {
+      if (isTransitioning) {
+        pendingIndex = targetIdx;
+        return;
+      }
+      startTransitionTo(targetIdx);
+    }
+
+    carouselPrev.addEventListener('click', () => requestSlide(slideIndex - 1));
+    carouselNext.addEventListener('click', () => requestSlide(slideIndex + 1));
 
     // Clicking carousel opens lightbox
-    carouselImg.addEventListener('click', () => {
-      openLightbox(slideIndex);
+    carouselFrame.addEventListener('click', () => openLightbox(slideIndex));
+    carouselFrame.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') openLightbox(slideIndex);
     });
 
     // Initialize
-    showSlide(0);
+    requestSlide(0);
   }
 
   // ----------------------------

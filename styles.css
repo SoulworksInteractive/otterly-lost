@@ -666,8 +666,9 @@ h1.headline {
   /* minimal fade */
 }
 
-.asset-download i {
-  font-size: 1.1rem;
+.asset-download svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .asset-grid>a:hover .asset-download {
@@ -769,13 +770,25 @@ li {
   margin: auto;
 }
 
-.carousel-image {
+.carousel-frame {
   width: 100%;
   cursor: pointer;
   border: 0px solid var(--color-card-border);
   border-radius: 0px;
   display: block;
-  object-fit: cover;
+  /* Reserve aspect ratio to prevent layout jump while swapping */
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  min-height: 240px;
+}
+
+/* Natural flow for new image */
+.carousel-frame picture,
+.carousel-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .carousel-nav {
@@ -832,14 +845,14 @@ li {
 
 .lightbox-content {
   position: relative;
-  max-width: 80%;
-  max-height: 80vh;
+  width: min(1200px, 90vw);
+  max-height: 90vh;
   margin: 0 auto;
 }
 
 .lightbox-image {
   max-width: 100%;
-  max-height: 80vh;
+  max-height: 90vh;
   object-fit: contain;
   border: none;
   box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
@@ -915,8 +928,9 @@ li {
   transform: translateY(-2px);
 }
 
-.lightbox-download i {
-  font-size: 1.1rem;
+.lightbox-download svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 /*------------------------------------------------------------
