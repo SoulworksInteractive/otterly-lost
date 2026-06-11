@@ -387,7 +387,8 @@ h1.headline {
 .gif1,
 .gif2,
 .gif3,
-.gif4 {
+.gif4,
+.gif5 {
   display: block;
   margin: auto;
   margin-top: 1.25rem;
@@ -951,7 +952,8 @@ li {
 .gif1,
 .gif2,
 .gif3,
-.gif4 {
+.gif4,
+.gif5 {
   overflow:hidden;
 }
 
